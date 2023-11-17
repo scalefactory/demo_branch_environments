@@ -1,0 +1,46 @@
+name: 'Deploy workload infrastructure'
+
+on:
+  workflow_dispatch:
+
+env:
+ BRANCH_NAME: ${{ github.head_ref || github.ref_name }} 
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform_workload:
+    name: 'Deploy workload infrastructure using Terraform'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: 's3_bucket'
+
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: arn:aws:iam::${{vars.AWS_ACCOUNT_DEMO}}:role/github_action_role
+        aws-region: eu-west-1
+
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.4.6
+
+    - name: Terraform init
+      run: terraform init -backend-config="key=${{ env.BRANCH_NAME }}"
+
+    - name: Terraform format
+      run: terraform fmt -check
+
+    - name: Terraform plan & apply
+      run: |
+        terraform plan --var 'environment=${{ env.BRANCH_NAME }}' --input=false --out terraform-plan
+        terraform apply terraform-plan

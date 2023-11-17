@@ -1,0 +1,40 @@
+name: 'Destroy infrastructure'
+
+on:
+  workflow_dispatch:
+  delete:
+    branches:
+
+env:
+ BRANCH_NAME: ${{ github.head_ref || github.ref_name }} 
+ 
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform_destroy:
+    name: 'Terraform destroy'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: 's3_bucket'
+
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: arn:aws:iam::${{vars.AWS_ACCOUNT_DEMO}}:role/github_action_role
+        aws-region: eu-west-1
+
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Terraform init
+      run: terraform init -backend-config="key=${{ env.BRANCH_NAME }}"
+
+    - name: Terraform plan destroy
+      run: |
+          terraform plan -destroy --var=environment=${{ env.BRANCH_NAME }} --input=false --out=destroy-plan
+          terraform apply destroy-plan 
